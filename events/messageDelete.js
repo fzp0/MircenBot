@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   name: 'messageDelete',
   async execute(message, client) {
     if (!message.guild) return;
@@ -13,25 +13,24 @@ module.exports = {
     }
 
     const logChannel = message.guild.channels.cache.find(
-      c => c.name === 'edit-delete-log' && c.type === 0
+      c => c.name === 'edit-delete-log' && c.type === 0 // type 0 = GUILD_TEXT in old versions, or use ChannelType.GuildText
     );
     if (!logChannel) return;
 
-    // Get audit logs for MESSAGE_DELETE
     let deleter = 'Unknown';
+
     try {
       const fetchedLogs = await message.guild.fetchAuditLogs({
         limit: 1,
-        type: 72, // MESSAGE_DELETE
+        type: 72 // MESSAGE_DELETE
       });
 
       const deletionLog = fetchedLogs.entries.first();
       if (deletionLog) {
         const { executor, target, createdTimestamp } = deletionLog;
 
-        // Make sure it's about THIS message
         const timeDiff = Date.now() - createdTimestamp;
-        if (target.id === message.author?.id && timeDiff < 5000) {
+        if (target?.id === message.author?.id && timeDiff < 5000) {
           deleter = executor.tag;
         }
       }

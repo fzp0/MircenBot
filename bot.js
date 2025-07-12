@@ -1,35 +1,48 @@
-const { Client, GatewayIntentBits, Partials, Collection, Options } = require('discord.js');
-require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
-const playdl = require('play-dl');
+// bot.js (ESM Version)
 
+import 'dotenv/config';
+import { Client, GatewayIntentBits, Partials, Options } from 'discord.js';
+import fs from 'fs';
+import path from 'path';
+import { setupPlayer } from './player.js';
+import ffmpeg from 'ffmpeg-static';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Setup __dirname replacement for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load cookies (if used for future extractor setup)
 const cookies = fs.readFileSync('./youtube_cookies.txt', 'utf8');
 
-playdl.setToken({
-    youtube: {
-        cookie: cookies
-    }
-});
-
+// Create the bot client
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates
+  ],
   partials: [Partials.Message, Partials.Channel],
-   makeCache: Options.cacheWithLimits({
-    MessageManager: 1000, // store up to 1000 messages per channel
+  makeCache: Options.cacheWithLimits({
+    MessageManager: 1000
   })
 });
 
+// On ready
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
+  console.log(`Bot ID: ${client.user.id}`);
+  console.log(ffmpeg);
 });
 
-
+// Load events
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
 for (const file of eventFiles) {
-  const event = require(`./events/${file}`);
+  const { default: event } = await import(`./events/${file}`);
   if (event.once) {
     client.once(event.name, (...args) => event.execute(...args, client));
   } else {
@@ -37,5 +50,9 @@ for (const file of eventFiles) {
   }
 }
 
+// Setup discord-player
+await setupPlayer(client);
 
-client.login(process.env.DISCORD_TOKEN);
+// Login
+await client.login(process.env.DISCORD_TOKEN);
+
