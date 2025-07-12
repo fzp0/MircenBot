@@ -1,3 +1,7 @@
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice');
+const playdl = require('play-dl');
+
+
 module.exports ={
     name: 'messageCreate',
     async execute(message, client) {
@@ -13,26 +17,43 @@ module.exports ={
                 let videoURL = args;
                 let videoTitle = '';
                 
-                // Check if it's a valid YouTube URL first
-                const isYouTubeUrl = await playdl.yt_validate(args);
+
+                // Check if it's a YouTube URL using regex
+                const isYouTubeUrl = args.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)/);
                 
                 if (!isYouTubeUrl) {
-                    // If not a valid URL, try searching
+                    // Handle search
                     try {
-                    const searchResults = await playdl.search(args, { limit: 1 });
-                    if (!searchResults || searchResults.length === 0) {
-                        return message.reply('Could not find any videos matching your search.');
-                    }
-                    videoURL = searchResults[0].url;
-                    videoTitle = searchResults[0].title;
+                        const searchResults = await playdl.search(args, {
+                            limit: 1,
+                            source: { youtube: "video" }
+                        });
+                        
+                        if (!searchResults || searchResults.length === 0) {
+                            return message.reply('Could not find any videos matching your search.');
+                        }
+                        
+                        videoURL = searchResults[0].url;
+                        videoTitle = searchResults[0].title;
+                        console.log(`Found video: ${videoTitle} (${videoURL})`);
                     } catch (searchError) {
-                    console.error('Search error:', searchError);
-                    return message.reply('An error occurred while searching. Please try a different search term.');
+                        console.error('Search error:', searchError);
+                        return message.reply('An error occurred while searching. Please try a different search term.');
                     }
                 } else {
-                    // If it is a valid YouTube URL, get video info
-                    const videoInfo = await playdl.video_info(videoURL);
-                    videoTitle = videoInfo.video_details.title;
+                    // Handle direct YouTube URL
+                    try {
+                        const videoInfo = await playdl.video_basic_info(args);
+                        if (!videoInfo || !videoInfo.video_details) {
+                            return message.reply('Could not get video information.');
+                        }
+                        videoURL = args;
+                        videoTitle = videoInfo.video_details.title;
+                        console.log(`Using direct URL: ${videoTitle} (${videoURL})`);
+                    } catch (error) {
+                        console.error('Video info error:', error);
+                        return message.reply('Invalid YouTube URL. Please provide a valid YouTube video URL.');
+                    }
                 }
 
                 // Voice channel check
@@ -40,39 +61,53 @@ module.exports ={
                     return message.reply('You need to join a voice channel first!');
                 }
 
-                // Stream setup
-                const stream = await playdl.stream(videoURL, {
-                    discordPlayerCompatibility: true,
-                    quality: 2
-                });
+                if (!videoURL) {
+                    throw new Error('No valid video URL found');
+                }
+                console.log(`Attempting to stream URL: ${videoURL}`);
+                
+                try {
+                    const streamData = await playdl.stream(videoURL);
+                    
+                    if (!streamData) {
+                        throw new Error('Failed to get stream data');
+                    }
 
-                const resource = createAudioResource(stream.stream, {
-                    inputType: stream.type,
-                    inlineVolume: true
-                });
+                    const resource = createAudioResource(streamData.stream, {
+                        inputType: streamData.type,
+                        inlineVolume: true
+                    });
 
-                const player = createAudioPlayer();
-                const connection = joinVoiceChannel({
-                    channelId: message.member.voice.channel.id,
-                    guildId: message.guild.id,
-                    adapterCreator: message.guild.voiceAdapterCreator,
-                });
+                    const player = createAudioPlayer({
+                        behaviors: {
+                            noSubscriber: NoSubscriberBehavior.Play
+                        }
+                    });
 
-                connection.subscribe(player);
-                player.play(resource);
+                    const connection = joinVoiceChannel({
+                        channelId: message.member.voice.channel.id,
+                        guildId: message.guild.id,
+                        adapterCreator: message.guild.voiceAdapterCreator,
+                    });
 
-                player.on(AudioPlayerStatus.Idle, () => {
-                    connection.destroy();
-                });
+                    connection.subscribe(player);
+                    player.play(resource);
 
-                player.on('error', error => {
-                    console.error('Playback error:', error);
-                    message.channel.send('An error occurred while playing the audio.');
-                    connection.destroy();
-                });
+                    player.on(AudioPlayerStatus.Idle, () => {
+                        connection.destroy();
+                    });
 
-                // Use the correct videoURL variable and include title if available
-                message.reply(`Now playing: ${videoTitle || videoURL}`);
+                    player.on('error', error => {
+                        console.error('Playback error:', error);
+                        message.channel.send('An error occurred while playing the audio.');
+                        connection.destroy();
+                    });
+
+                    message.reply(`Now playing: ${videoTitle || videoURL}`);
+                } catch (streamError) {
+                    console.error('Stream error:', streamError);
+                    throw new Error('Failed to create audio stream');
+                }
             } 
             catch (error) {
             console.error('Play command error:', error);
@@ -84,7 +119,7 @@ module.exports ={
         if (message.content === '!terpeny') {
             message.channel.send(`
             Terpenowy hymn
-            
+
             W świecie zapachów i cudów zielonych
             Królują terpeny – nuty nieskończone.
             Niech każdy z nich znajdzie swój moment,

@@ -2,12 +2,13 @@ const { Client, GatewayIntentBits, Partials, Collection, Options } = require('di
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const playdl = require('play-dl');
+
+const cookies = fs.readFileSync('./youtube_cookies.txt', 'utf8');
 
 playdl.setToken({
     youtube: {
-        cookie: process.env.YOUTUBE_COOKIE // Add your YouTube cookie to .env file
+        cookie: cookies
     }
 });
 
