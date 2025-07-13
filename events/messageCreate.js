@@ -9,6 +9,8 @@ import {
     entersState
 } from '@discordjs/voice';
 
+import { QueryType } from 'discord-player';
+
 export default {
     name: 'messageCreate',
     async execute(message, client) {
@@ -24,38 +26,45 @@ export default {
     }
 };
 
-async function handlePlayCommand(message, client) {
-   const query = message.content.replace('!play', '').trim();
-        if (!query) return message.reply('Please provide a song name or URL.');
 
-        const channel = message.member.voice.channel;
-        if (!channel) return message.reply('Join a voice channel first!');
+export async function handlePlayCommand(message, client) {
+    var query = message.content.replace('!play', '').trim();
+    if (!query) return message.reply('❌ Provide a song name or URL.');
+    
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) return message.reply('🎙️ Join a voice channel first!');
 
-        try {
-            const result = await client.player.search(query, {
-                requestedBy: message.user
-            });
+    try {
+    // Always use AUTO to let extractors handle URL vs search
+    console.log(`🔍 Searching for: ${query}`);
+    const result = await client.player.search(query, {
+      requestedBy: message.member,
+      searchEngine: QueryType.AUTO
+    });
 
-            if (!result.hasTracks()) {
-                return message.reply('No results found.');
-            }
+    console.log('🔍 Search result:', {
+        queryType: result.queryType,
+        tracksCount: result.tracks.length,
+        tracks: result.tracks.map(t => ({ title: t.title, url: t.url }))
+    });
 
-            const queue = await client.player.nodes.create(message.guild, {
-                metadata: {
-                    channel: message.channel
-                }
-            });
+    if (!result.hasTracks()) {
+      return message.reply('❌ No results found.');
+    }
 
-            if (!queue.connection) await queue.connect(channel);
-            await queue.addTrack(result.tracks[0]);
+    const queue = await client.player.nodes.create(message.guild, {
+      metadata: { channel: message.channel }
+    });
 
-            if (!queue.isPlaying()) await queue.node.play();
+    if (!queue.connection) await queue.connect(voiceChannel);
+    await queue.addTrack(result.tracks[0]);
+    if (!queue.isPlaying()) await queue.node.play();
 
-            message.reply(`🎶 Now playing: **${result.tracks[0].title}**`);
-        } catch (err) {
-            console.error('❌ Player error:', err);
-            message.reply('An error occurred while trying to play that song.');
-        }
+    return message.reply(`🎶 Now playing: **${result.tracks[0].title}**`);
+  } catch (err) {
+    console.error('❌ Playback error:', err);
+    return message.reply('⚠️ An error occurred while playing your track.');
+  }
 }
 
 // 🌿 Handles the !terpeny command

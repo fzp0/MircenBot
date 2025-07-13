@@ -13,8 +13,7 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load cookies (if used for future extractor setup)
-const cookies = fs.readFileSync('./youtube_cookies.txt', 'utf8');
+
 
 // Create the bot client
 const client = new Client({

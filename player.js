@@ -1,21 +1,24 @@
 // player.js
 import { Player } from 'discord-player';
-import extractor from '@discord-player/extractor';
+import { DefaultExtractors} from '@discord-player/extractor';
+import fs from 'fs';
 
 export async function setupPlayer(client) {
     const player = new Player(client, {
         ytdlOptions: {
             quality: 'highestaudio',
-            highWaterMark: 1 << 25
+            highWaterMark: 1 << 25,
         }
     });
 
-    const { DefaultExtractors } = extractor;
+
+    const options = {
+        soundcloud: { clientId: process.env.SOUNDCLOUD_CLIENT_ID },
+        youtube: { cookies: fs.readFileSync('./youtube_cookies.txt', 'utf-8') }
+    };
 
     // ✅ Register each pre-instantiated extractor
-    for (const extractorInstance of DefaultExtractors) {
-        await player.extractors.register(extractorInstance);
-    }
+    await player.extractors.loadMulti(DefaultExtractors, options);
 
     client.player = player;
     console.log("✅ All extractors registered!");
