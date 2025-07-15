@@ -36,6 +36,10 @@ export default {
             return handleClearCommand(message, client);
         }
 
+        if (message.content === '!stop' || message.content === '!disconnect') {
+            return handleDisconnectCommand(message, client);
+        }
+
         if (message.content === '!terpeny') {
             return handleTerpenyCommand(message);
         }
@@ -62,13 +66,40 @@ async function handlePauseCommand(message, client) {
 async function handleQueueCommand(message, client) {
     const queue = client.player.nodes.get(message.guild.id);
 
-    if (!queue || !queue.tracks.length) {
+    if (!queue) {
+        console.log('Queue does not exist.');
         return message.reply('❌ The queue is empty.');
     }
 
-    const queueList = queue.tracks.map((track, index) => `${index + 1}. **${track.title}**`).join('\n');
-    return message.reply(`🎶 Current Queue:\n${queueList}`);
+    const currentTrack = queue.currentTrack;
+    const tracks = queue.tracks.data;
+
+    if (!currentTrack && !tracks.length) {
+        console.log('Queue exists but is completely empty.');
+        console.log('Queue object:', queue);
+        return message.reply('❌ The queue is empty.');
+    }
+
+    console.log('Current track:', currentTrack);
+    console.log('Upcoming tracks:', tracks);
+
+    const maxTracksToShow = 10;
+    const displayedTracks = tracks
+        .slice(0, maxTracksToShow)
+        .map((track, index) => `${index + 1}. **${track.title}** (${track.duration})`)
+        .join('\n');
+
+    const additionalTracks = tracks.length > maxTracksToShow
+        ? `\n...and ${tracks.length - maxTracksToShow} more tracks.`
+        : '';
+
+    const nowPlaying = currentTrack
+        ? `▶️ **Now Playing:** ${currentTrack.title} (${currentTrack.duration})\n\n`
+        : '';
+
+    return message.reply(`${nowPlaying}🎶 **Queue:**\n${displayedTracks}${additionalTracks}`);
 }
+
 
 
 async function handleSkipCommand(message, client) {
@@ -90,18 +121,20 @@ async function handleSkipCommand(message, client) {
 async function handleClearCommand(message, client) {
     const queue = client.player.nodes.get(message.guild.id);
 
-    if (!queue || !queue.tracks.length) {
+    if (!queue || !queue.tracks || !queue.tracks.data.length) {
         return message.reply('❌ The queue is already empty.');
     }
 
     try {
-        queue.tracks.clear(); // Clears the queue
-        return message.reply('🗑️ Cleared the queue.');
+        queue.tracks.clear(); // Clears all tracks in the queue (not the current track)
+        console.log(`✅ Cleared queue for guild: ${message.guild.id}`);
+        return message.reply('🗑️ The queue has been cleared.');
     } catch (err) {
-        console.error('❌ Clear command error:', err);
+        console.error('❌ Error while clearing the queue:', err);
         return message.reply('⚠️ An error occurred while clearing the queue.');
     }
 }
+
 
 async function handlePlayCommand(message, client) {
     const query = message.content.replace('!play', '').trim();
@@ -157,6 +190,23 @@ async function handlePlayCommand(message, client) {
     } catch (err) {
         console.error('❌ Playback error:', err);
         return message.reply('⚠️ An error occurred while playing your track.');
+    }
+}
+
+async function handleDisconnectCommand(message, client) {
+    const queue = client.player.nodes.get(message.guild.id);
+
+    if (!queue || !queue.connection) {
+        return message.reply('❌ The bot is not connected to a voice channel.');
+    }
+
+    try {
+        queue.node.stop(); // Stops playback
+        queue.connection.destroy(); // Disconnects from the voice channel
+        return message.reply('🛑 Playback stopped and disconnected from the voice channel.');
+    } catch (err) {
+        console.error('❌ Disconnect command error:', err);
+        return message.reply('⚠️ An error occurred while disconnecting.');
     }
 }
 
