@@ -178,9 +178,8 @@ async function handlePlayCommand(message, client) {
         if (!newQueue.connection) await newQueue.connect(voiceChannel);
         await newQueue.addTrack(result.tracks[0]);
 
-        if (!newQueue.isPlaying()) await newQueue.node.play();
-
         if (!newQueue.isPlaying()) {
+            console.log('🎶 Playing track:', result.tracks[0].title);
             await newQueue.node.play();
             return message.reply(`🎶 Now playing: **${result.tracks[0].title}**`);
         } else {
